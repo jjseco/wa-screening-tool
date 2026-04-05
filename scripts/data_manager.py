@@ -9,21 +9,30 @@ Two modes:
 Cloud mode is active when:
   1. The environment variable STREAMLIT_CLOUD=true is set, OR
   2. data/processed/ does not exist or contains no .gpkg files.
+
+Hugging Face dataset layout:
+  jseco5555/wa-screening-tool-data
+  └── processed/
+      ├── esa_clean.gpkg
+      ├── wetlands_clean.gpkg
+      └── ... (all 21 processed layers)
 """
 
 import os
-import tempfile
+import traceback
 
 from config import DATA_PROCESSED
 
 HF_REPO_ID = "jseco5555/wa-screening-tool-data"
+HF_SUBFOLDER = "processed"
 
-# Cache directory used in cloud mode. Lives in the system temp dir so it is
-# always writable (including on Streamlit Community Cloud).
-_CACHE_DIR = os.path.join(tempfile.gettempdir(), "wa_screening_cache")
+# Explicit path — /tmp is always writable on Streamlit Community Cloud.
+# Falls back to a subfolder of the system temp dir on Windows.
+_CACHE_DIR = "/tmp/wa_screening_cache" if os.name != "nt" else os.path.join(
+    os.environ.get("TEMP", os.path.expanduser("~")), "wa_screening_cache"
+)
 
-# Internal set tracking which files have already been logged as "downloading"
-# so repeat calls (e.g. after a Streamlit rerun) are quieter.
+# Track filenames already logged so reruns are quieter.
 _logged_downloads: set[str] = set()
 
 
@@ -42,8 +51,11 @@ def get_layer_path(filename: str) -> str:
     Return the local filesystem path for a processed layer file.
 
     LOCAL mode: returns data/processed/{filename} directly.
-    CLOUD mode: downloads the file from Hugging Face if it is not already
-                cached, then returns the cached path.
+    CLOUD mode: downloads the file from Hugging Face if not already cached,
+                then returns the cached path.
+
+    Files are stored in the HF repo under processed/{filename}, so
+    hf_hub_download is called with subfolder='processed'.
     """
     if not is_cloud_mode():
         return os.path.join(DATA_PROCESSED, filename)
@@ -51,10 +63,14 @@ def get_layer_path(filename: str) -> str:
     # --- Cloud mode ---
     os.makedirs(_CACHE_DIR, exist_ok=True)
 
-    # hf_hub_download is fast when the file is already cached; it only
-    # hits the network when the blob is missing or stale.
+    hf_path = f"{HF_SUBFOLDER}/{filename}"
+
     if filename not in _logged_downloads:
-        print(f"[data_manager] Fetching '{filename}' from Hugging Face ({HF_REPO_ID})…")
+        print(
+            f"[data_manager] Fetching '{hf_path}' from "
+            f"Hugging Face repo '{HF_REPO_ID}' (repo_type='dataset') "
+            f"→ cache_dir='{_CACHE_DIR}'"
+        )
         _logged_downloads.add(filename)
 
     try:
@@ -63,13 +79,19 @@ def get_layer_path(filename: str) -> str:
         local_path = hf_hub_download(
             repo_id=HF_REPO_ID,
             filename=filename,
+            subfolder=HF_SUBFOLDER,
             repo_type="dataset",
             cache_dir=_CACHE_DIR,
         )
+        print(f"[data_manager] OK — '{filename}' resolved to: {local_path}")
         return local_path
 
     except Exception as exc:
-        print(f"[data_manager] ERROR downloading '{filename}': {exc}")
-        # Return the expected path so load_layer can emit its own "file not
+        print(
+            f"[data_manager] ERROR downloading '{hf_path}' from '{HF_REPO_ID}':\n"
+            f"  {type(exc).__name__}: {exc}\n"
+            f"{traceback.format_exc()}"
+        )
+        # Return the expected flat path so load_layer emits its own "file not
         # found" warning rather than crashing with an unhandled exception.
         return os.path.join(_CACHE_DIR, filename)
