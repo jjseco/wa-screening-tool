@@ -344,10 +344,11 @@ def generate_word_report(
     # ----------------------------------------------------------------
     # SAVE
     # ----------------------------------------------------------------
-    os.makedirs(OUTPUTS_SUMMARIES, exist_ok=True)
+    out_dir = "/tmp/wa_outputs/reports"
+    os.makedirs(out_dir, exist_ok=True)
     safe_name = site_name.replace(" ", "_").replace("/", "-")
     file_name = f"{safe_name}_screening_report.docx"
-    file_path = os.path.join(OUTPUTS_SUMMARIES, file_name)
+    file_path = os.path.join(out_dir, file_name)
     doc.save(file_path)
     print(f"Word report saved to: {file_path}")
     return file_path

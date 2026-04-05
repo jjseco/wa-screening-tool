@@ -126,8 +126,10 @@ def format_sheet(ws, df):
 def export_to_excel(results, site_name, site_gdf=None, layers=None, buffers=None, theme_summary=None):
     """Export screening results to a structured Excel file with one sheet per theme."""
 
+    out_dir = "/tmp/wa_outputs/tables"
+    os.makedirs(out_dir, exist_ok=True)
     file_name = f"{site_name.replace(' ', '_')}_screening_results.xlsx"
-    file_path = os.path.join(OUTPUTS_TABLES, file_name)
+    file_path = os.path.join(out_dir, file_name)
 
     buffer_distances = sorted(buffers.keys()) if buffers else [100, 250, 500]
 

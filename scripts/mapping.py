@@ -525,9 +525,11 @@ def generate_map(site_gdf, buffers, layers, site_name, map_suffix="",
         spine.set_edgecolor("#cccccc")
 
     # Save
+    out_dir = "/tmp/wa_outputs/maps"
+    os.makedirs(out_dir, exist_ok=True)
     suffix = f"_{map_suffix}" if map_suffix else ""
     file_name = f"{site_name.replace(' ', '_')}_screening_map{suffix}.png"
-    file_path = os.path.join(OUTPUTS_MAPS, file_name)
+    file_path = os.path.join(out_dir, file_name)
     plt.tight_layout()
     plt.savefig(file_path, dpi=150, facecolor=fig.get_facecolor(),
                 bbox_inches="tight")
