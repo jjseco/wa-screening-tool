@@ -10,7 +10,7 @@ def load_layer(layer_key, bbox=None):
 
     Args:
         layer_key: Key in LAYER_REGISTRY.
-        bbox: Optional bounding box tuple (minx, miny, maxx, maxy) in EPSG:4326.
+        bbox: Optional bounding box tuple (minx, miny, maxx, maxy) in EPSG:32750.
               When provided, only features within the bbox are read from disk,
               which dramatically reduces memory usage on large datasets.
     """
@@ -44,7 +44,7 @@ def load_layers_for_themes(selected_themes, bbox=None):
 
     Args:
         selected_themes: List of theme names to load.
-        bbox: Optional bounding box tuple (minx, miny, maxx, maxy) in EPSG:4326.
+        bbox: Optional bounding box tuple (minx, miny, maxx, maxy) in EPSG:32750.
               Passed through to load_layer for spatial pre-filtering.
     """
 
@@ -63,7 +63,7 @@ def load_all_layers(bbox=None):
     """Load all layers defined in the registry.
 
     Args:
-        bbox: Optional bounding box tuple (minx, miny, maxx, maxy) in EPSG:4326.
+        bbox: Optional bounding box tuple (minx, miny, maxx, maxy) in EPSG:32750.
               Passed through to load_layer for spatial pre-filtering.
     """
 

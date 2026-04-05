@@ -4,9 +4,17 @@ import matplotlib.lines as mlines
 import os
 from config import OUTPUTS_MAPS
 
-# Colors assigned to buffer rings by index (innermost first)
-BUFFER_COLOR_SEQUENCE = ["#e63946", "#f4a261", "#2ec4b6"]
-BUFFER_ALPHA_FILL_SEQUENCE = [0.08, 0.06, 0.04]
+# Buffer ring fill/edge colors — light grey tones (innermost first: 100m, 250m, 500m)
+BUFFER_FILL_COLORS = ["#e8e8e8", "#f0f0f0", "#f5f5f5"]
+BUFFER_EDGE_COLORS = ["#555555", "#777777", "#999999"]
+BUFFER_ALPHA_FILL = 0.25
+
+# Cadastre parcel / residential count label colors by buffer distance
+BUFFER_PARCEL_COLORS = {
+    100: "#d4a574",   # warm tan
+    250: "#e8c99a",   # light tan
+    500: "#f5e6d0",   # very light beige
+}
 
 # Community facility type colors
 FACILITY_TYPE_COLORS = {
@@ -36,9 +44,9 @@ FACILITY_TYPE_COLORS = {
 }
 DEFAULT_FACILITY_COLOR = "#aaaaaa"
 
-def _buffer_color(idx):
-    """Return a color for the buffer at the given index (innermost = 0)."""
-    return BUFFER_COLOR_SEQUENCE[idx % len(BUFFER_COLOR_SEQUENCE)]
+def _buffer_parcel_color(dist):
+    """Return the parcel/label color for the given buffer distance."""
+    return BUFFER_PARCEL_COLORS.get(dist, "#d4a574")
 
 # Residential type colors
 RESIDENTIAL_TYPE_COLORS = {
@@ -118,24 +126,36 @@ def _build_buffer_styles(buffer_distances):
     """Build a {distance: style_dict} mapping for the given buffer distances."""
     styles = {}
     for i, d in enumerate(sorted(buffer_distances)):
-        color = _buffer_color(i)
         styles[d] = {
-            "color": color,
-            "alpha": BUFFER_ALPHA_FILL_SEQUENCE[i % len(BUFFER_ALPHA_FILL_SEQUENCE)],
+            "color": BUFFER_FILL_COLORS[i % len(BUFFER_FILL_COLORS)],
+            "alpha": BUFFER_ALPHA_FILL,
             "label": f"{d}m buffer",
-            "edgecolor": color,
+            "edgecolor": BUFFER_EDGE_COLORS[i % len(BUFFER_EDGE_COLORS)],
         }
     return styles
 
 
 def add_north_arrow(ax):
-    """Add a north arrow to the map."""
+    """Add a north arrow to the lower-right corner of the map.
+
+    Placed at bottom-right to avoid overlapping the legend (upper-right).
+    Uses a filled arrowhead and a separate text label for reliable rendering.
+    """
+    # Arrow shaft pointing upward (south → north)
     ax.annotate(
-        "N", xy=(0.96, 0.96), xytext=(0.96, 0.92),
+        "", xy=(0.93, 0.13), xytext=(0.93, 0.05),
         xycoords="axes fraction", textcoords="axes fraction",
-        ha="center", va="center",
+        arrowprops=dict(
+            arrowstyle="-|>", color="black", lw=1.5,
+            mutation_scale=14
+        )
+    )
+    # "N" label above the arrowhead
+    ax.text(
+        0.93, 0.145, "N",
+        ha="center", va="bottom",
         fontsize=10, fontweight="bold", color="black",
-        arrowprops=dict(arrowstyle="->", color="black", lw=2)
+        transform=ax.transAxes, zorder=15
     )
 
 
@@ -163,8 +183,8 @@ def plot_cadastre_by_buffer(ax, cadastre_gdf, buffers, legend_handles):
     """Plot cadastral parcels colored by which buffer they fall in."""
     plotted_ids = set()
 
-    for i, dist in enumerate(sorted(buffers.keys())):
-        color = _buffer_color(i)
+    for dist in sorted(buffers.keys()):
+        color = _buffer_parcel_color(dist)
         buf_union = buffers[dist].geometry.union_all()
         nearby = cadastre_gdf[cadastre_gdf.geometry.intersects(buf_union)].copy()
         new = nearby[~nearby.index.isin(plotted_ids)]
@@ -203,12 +223,12 @@ def plot_residential_by_type(ax, residential_gdf, buffers, legend_handles):
                 legend_handles.append(handle)
 
     # Show counts per buffer as text
-    for i, dist in enumerate(sorted(buffers.keys())):
+    for dist in sorted(buffers.keys()):
         buf_union = buffers[dist].geometry.union_all()
         count = len(residential_gdf[residential_gdf.geometry.intersects(buf_union)])
         if count > 0:
             buf_centroid = buffers[dist].geometry.iloc[0].centroid
-            color = _buffer_color(i)
+            color = _buffer_parcel_color(dist)
             offset = dist * 0.6
             ax.text(
                 buf_centroid.x - offset,

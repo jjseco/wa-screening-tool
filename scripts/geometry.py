@@ -1,5 +1,5 @@
-import math
 import geopandas as gpd
+from pyproj import Transformer
 from shapely.geometry import Point
 from config import INPUT_CRS, ANALYSIS_CRS, BUFFERS
 
@@ -19,29 +19,25 @@ def create_site_point(latitude, longitude):
 
 
 def create_bbox(latitude, longitude, margin_km=2.0):
-    """Create a bounding box around a point with a margin in kilometres.
+    """Create a bounding box around a point in the analysis CRS (EPSG:32750).
+
+    Projects the site coordinates from EPSG:4326 to EPSG:32750 and adds a
+    symmetric margin in metres, so the returned bbox matches the CRS of all
+    processed layer files and can be passed directly to gpd.read_file(bbox=...).
 
     Args:
         latitude: Site latitude in decimal degrees (EPSG:4326).
         longitude: Site longitude in decimal degrees (EPSG:4326).
-        margin_km: Half-width of the bounding box in kilometres. Default 2 km
+        margin_km: Half-width of the bounding box in kilometres. Default 2.0 km
                    is sufficient to cover 500 m buffers with comfortable margin.
 
     Returns:
-        Tuple (minx, miny, maxx, maxy) in EPSG:4326.
+        Tuple (minx, miny, maxx, maxy) in EPSG:32750.
     """
-    deg_per_km_lat = 1.0 / 111.32
-    deg_per_km_lon = 1.0 / (111.32 * math.cos(math.radians(latitude)))
-
-    delta_lat = margin_km * deg_per_km_lat
-    delta_lon = margin_km * deg_per_km_lon
-
-    minx = longitude - delta_lon
-    maxx = longitude + delta_lon
-    miny = latitude - delta_lat
-    maxy = latitude + delta_lat
-
-    return (minx, miny, maxx, maxy)
+    transformer = Transformer.from_crs(INPUT_CRS, ANALYSIS_CRS, always_xy=True)
+    x, y = transformer.transform(longitude, latitude)
+    margin_m = margin_km * 1000
+    return (x - margin_m, y - margin_m, x + margin_m, y + margin_m)
 
 
 def create_buffers(site_gdf, buffer_distances=None):
