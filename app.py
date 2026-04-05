@@ -1,6 +1,6 @@
 import streamlit as st
 from scripts.load_layers import load_layers_for_themes
-from scripts.geometry import create_site_point, create_buffers
+from scripts.geometry import create_site_point, create_buffers, create_bbox
 from scripts.spatial_query import run_all_queries
 from scripts.export import export_to_excel
 from scripts.risk_scoring import score_results
@@ -244,7 +244,8 @@ if st.button("Run Screening", type="primary"):
         with st.spinner("Running screening..."):
             site_gdf = create_site_point(latitude, longitude)
             buffers = create_buffers(site_gdf, buffer_distances=selected_buffer_distances)
-            layers = load_layers_for_themes(selected_themes)
+            bbox = create_bbox(latitude, longitude, margin_km=2.0)
+            layers = load_layers_for_themes(selected_themes, bbox=bbox)
 
             if not layers:
                 st.error("No processed layers found. Please run preprocessing first.")

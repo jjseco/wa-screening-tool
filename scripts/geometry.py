@@ -1,3 +1,4 @@
+import math
 import geopandas as gpd
 from shapely.geometry import Point
 from config import INPUT_CRS, ANALYSIS_CRS, BUFFERS
@@ -15,6 +16,32 @@ def create_site_point(latitude, longitude):
 
     print(f"Site point created at lat={latitude}, lon={longitude}")
     return gdf
+
+
+def create_bbox(latitude, longitude, margin_km=2.0):
+    """Create a bounding box around a point with a margin in kilometres.
+
+    Args:
+        latitude: Site latitude in decimal degrees (EPSG:4326).
+        longitude: Site longitude in decimal degrees (EPSG:4326).
+        margin_km: Half-width of the bounding box in kilometres. Default 2 km
+                   is sufficient to cover 500 m buffers with comfortable margin.
+
+    Returns:
+        Tuple (minx, miny, maxx, maxy) in EPSG:4326.
+    """
+    deg_per_km_lat = 1.0 / 111.32
+    deg_per_km_lon = 1.0 / (111.32 * math.cos(math.radians(latitude)))
+
+    delta_lat = margin_km * deg_per_km_lat
+    delta_lon = margin_km * deg_per_km_lon
+
+    minx = longitude - delta_lon
+    maxx = longitude + delta_lon
+    miny = latitude - delta_lat
+    maxy = latitude + delta_lat
+
+    return (minx, miny, maxx, maxy)
 
 
 def create_buffers(site_gdf, buffer_distances=None):
