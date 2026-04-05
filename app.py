@@ -17,16 +17,15 @@ import os
 # Page config
 st.set_page_config(
     page_title="WA Environmental Screening Tool",
-    page_icon="🌿",
     layout="centered"
 )
 
-st.title("🌿 WA Preliminary Environmental Screening Tool")
+st.title("WA Preliminary Environmental Screening Tool")
 
 # ----------------------------------------------------------------
 # TUTORIAL
 # ----------------------------------------------------------------
-with st.expander("📖 How to use this tool", expanded=False):
+with st.expander("How to use this tool", expanded=False):
     st.markdown("""
     This tool performs a **preliminary desktop environmental screening** for sites in Western Australia.
     It is designed for early-stage consulting review only and does not replace a formal environmental assessment.
@@ -45,36 +44,36 @@ with st.expander("📖 How to use this tool", expanded=False):
 # ----------------------------------------------------------------
 # LAYER DEFINITIONS
 # ----------------------------------------------------------------
-with st.expander("📋 Layer definitions and what to expect", expanded=False):
+with st.expander("Layer definitions and what to expect", expanded=False):
     st.markdown("""
-    ### 🔴 Environmentally Sensitive Areas (ESA) — DWER-046
+    ### Environmentally Sensitive Areas (ESA) — DWER-046
     Areas protected under WA clearing regulations. Includes Bush Forever, Threatened Ecological Communities, Wetlands of High Protection, Ramsar wetlands, and Water Source Protection zones.
 
-    ### 🔵 Wetlands — Swan Coastal Plain — DBCA-019
+    ### Wetlands — Swan Coastal Plain — DBCA-019
     Geomorphic wetlands mapped across the Swan Coastal Plain. Reports wetland name where available.
 
-    ### 🟠 Acid Sulfate Soils — DWER-055
+    ### Acid Sulfate Soils — DWER-055
     ASS risk mapping for the Swan Coastal Plain. Reports risk category.
 
-    ### 🟤 Aboriginal Cultural Heritage — DPLH
+    ### Aboriginal Cultural Heritage — DPLH
     Registered Aboriginal heritage places. Reports place name and type.
 
-    ### 🟡 State Heritage Register — DPLH
+    ### State Heritage Register — DPLH
     Places listed on the WA State Heritage Register. Reports place name.
 
-    ### 🔷 Groundwater Areas — DWER
+    ### Groundwater Areas — DWER
     Proclaimed groundwater areas and protection zones. Reports aquifer name.
 
-    ### ⬛ Contaminated Sites — DWER-059
+    ### Contaminated Sites — DWER-059
     Sites listed on the WA Contaminated Sites database. Reports classification.
 
-    ### 🔲 Local Government Areas — LGATE
+    ### Local Government Areas — LGATE
     Identifies which Local Government Area the site falls within.
 
-    ### ⬛ Roads / 🟣 Hospitals / 🟠 Schools — OSM / Geofabrik
+    ### Roads / Hospitals / Schools — OSM / Geofabrik
     Road network, hospitals and schools for site context and sensitive receptor assessment.
 
-    ### 🏠 Residential / Cadastral Parcels / Community Facilities
+    ### Residential / Cadastral Parcels / Community Facilities
     Residential buildings from OSM, all cadastral parcels from Landgate, and community facilities from OSM.
     """)
 
@@ -208,7 +207,7 @@ else:
 st.subheader("Screening Themes")
 if relevant_themes:
     st.markdown(
-        f"Themes marked **⭐** are most relevant for **{project_type}** projects. "
+        f"Themes marked **\*** are most relevant for **{project_type}** projects. "
         "All themes are selected by default."
     )
 else:
@@ -219,7 +218,7 @@ selected_themes = []
 cols = st.columns(2)
 for i, theme in enumerate(available_themes):
     col = cols[i % 2]
-    label = f"⭐ {theme}" if theme in relevant_themes else theme
+    label = f"* {theme}" if theme in relevant_themes else theme
     if col.checkbox(label, value=True, key=f"theme_{theme}"):
         selected_themes.append(theme)
 
@@ -308,7 +307,7 @@ if "results" in st.session_state:
     # ------------------------------------------------
     # RISK SUMMARY TABLE
     # ------------------------------------------------
-    _rating_display = {"HIGH": "🔴 HIGH", "MEDIUM": "🟡 MEDIUM", "LOW": "🟢 LOW", "NONE": "⚪ NONE"}
+    _rating_display = {"HIGH": "HIGH", "MEDIUM": "MEDIUM", "LOW": "LOW", "NONE": "NONE"}
     st.subheader("Risk Summary")
     risk_summary_rows = []
     for theme in selected_themes_saved:
@@ -338,7 +337,7 @@ if "results" in st.session_state:
             nearest_str = "—" if r["site_intersect"] else (str(nearest) if nearest else "—")
             row = {
                 "Layer": r["layer"],
-                "Present": "✅" if r["present"] else "—",
+                "Present": "Yes" if r["present"] else "—",
                 "Max Relevance": r["max_relevance"],
                 "Primary Trigger": r["primary_trigger"],
             }
@@ -403,7 +402,7 @@ if "results" in st.session_state:
     # MAP GENERATION
     # ------------------------------------------------
     st.divider()
-    st.subheader("🗺️ Generate Maps")
+    st.subheader("Generate Maps")
     st.markdown("Generate one or more maps. Each map can include different layers.")
 
     mappable_keys = [k for k in layers.keys() if k in MAP_LAYER_STYLES]
@@ -465,7 +464,7 @@ if "results" in st.session_state:
 # DATA SOURCES
 # ----------------------------------------------------------------
 st.divider()
-st.markdown("### 📚 Data Sources")
+st.markdown("### Data Sources")
 
 _ds_rows = []
 _ds_seen = set()
