@@ -13,6 +13,7 @@ from scripts.data_manager import is_cloud_mode
 from config import BUFFER_PRESETS
 import pandas as pd
 import os
+import uuid
 
 # Page config
 st.set_page_config(
@@ -240,6 +241,9 @@ if st.button("Run Screening", type="primary"):
                 "Hugging Face on first use and cached for this session. "
                 "This may take a moment."
             )
+        session_id = str(uuid.uuid4())[:8]
+        st.session_state["session_id"] = session_id
+
         with st.spinner("Running screening..."):
             site_gdf = create_site_point(latitude, longitude)
             buffers = create_buffers(site_gdf, buffer_distances=selected_buffer_distances)
@@ -259,6 +263,7 @@ if st.button("Run Screening", type="primary"):
                     layers=layers,
                     buffers=buffers,
                     theme_summary=theme_summary,
+                    session_id=session_id,
                 )
 
                 st.session_state["results"] = scored_results
@@ -284,6 +289,7 @@ if st.button("Run Screening", type="primary"):
                     layers=layers,
                     buffers=buffers,
                     selected_themes=selected_themes,
+                    session_id=session_id,
                 )
                 st.session_state["word_report_path"] = word_path
 
@@ -448,7 +454,8 @@ if "results" in st.session_state:
                             site_gdf, buffers, selected_layers,
                             site_name_saved,
                             map_suffix=f"map{map_idx + 1}",
-                            parcel_counts=parcel_counts if parcel_counts else None
+                            parcel_counts=parcel_counts if parcel_counts else None,
+                            session_id=st.session_state.get("session_id", ""),
                         )
                     st.image(map_path)
                     with open(map_path, "rb") as f:

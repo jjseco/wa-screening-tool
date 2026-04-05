@@ -298,7 +298,7 @@ def plot_community_facilities(ax, facility_gdf, legend_handles):
 
 
 def generate_map(site_gdf, buffers, layers, site_name, map_suffix="",
-                 parcel_counts=None):
+                 parcel_counts=None, session_id=""):
     """Generate a PNG map showing the site, buffers, and selected nearby features."""
 
     fig, ax = plt.subplots(1, 1, figsize=(12, 12))
@@ -527,8 +527,9 @@ def generate_map(site_gdf, buffers, layers, site_name, map_suffix="",
     # Save
     out_dir = "/tmp/wa_outputs/maps"
     os.makedirs(out_dir, exist_ok=True)
+    prefix = f"{session_id}_" if session_id else ""
     suffix = f"_{map_suffix}" if map_suffix else ""
-    file_name = f"{site_name.replace(' ', '_')}_screening_map{suffix}.png"
+    file_name = f"{prefix}{site_name.replace(' ', '_')}_screening_map{suffix}.png"
     file_path = os.path.join(out_dir, file_name)
     plt.tight_layout()
     plt.savefig(file_path, dpi=150, facecolor=fig.get_facecolor(),

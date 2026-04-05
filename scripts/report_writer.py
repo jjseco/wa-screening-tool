@@ -130,6 +130,7 @@ def generate_word_report(
     layers,
     buffers=None,
     selected_themes=None,
+    session_id="",
 ):
     """
     Generate a professional Word document screening report.
@@ -346,8 +347,9 @@ def generate_word_report(
     # ----------------------------------------------------------------
     out_dir = "/tmp/wa_outputs/reports"
     os.makedirs(out_dir, exist_ok=True)
+    prefix = f"{session_id}_" if session_id else ""
     safe_name = site_name.replace(" ", "_").replace("/", "-")
-    file_name = f"{safe_name}_screening_report.docx"
+    file_name = f"{prefix}{safe_name}_screening_report.docx"
     file_path = os.path.join(out_dir, file_name)
     doc.save(file_path)
     print(f"Word report saved to: {file_path}")
