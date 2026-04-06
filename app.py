@@ -1,12 +1,12 @@
 import streamlit as st
-from scripts.load_layers import load_layers_for_themes
+from scripts.load_layers import load_layers_for_themes, load_layer
 from scripts.geometry import create_site_point, create_buffers, create_bbox
 from scripts.spatial_query import run_all_queries
 from scripts.export import export_to_excel
 from scripts.risk_scoring import score_results
 from scripts.report_writer import generate_word_report
 from scripts.mapping import generate_map, MAP_LAYER_STYLES
-from scripts.registry import get_available_themes, LAYER_REGISTRY
+from scripts.registry import get_available_themes, LAYER_REGISTRY, get_layers_for_themes
 from scripts.export import _get_citation, _get_provider
 from scripts.project_types import PROJECT_TYPES
 from scripts.data_manager import is_cloud_mode
@@ -22,6 +22,23 @@ st.set_page_config(
 )
 
 st.title("WA Preliminary Environmental Screening Tool")
+
+# ----------------------------------------------------------------
+# DISCLAIMER
+# ----------------------------------------------------------------
+st.warning(
+    "PRELIMINARY SCREENING TOOL — This tool is intended for desktop screening purposes only. "
+    "Results are based on publicly available spatial datasets and do not constitute a formal "
+    "environmental assessment, environmental impact statement, or specialist technical report. "
+    "Always verify results against current authoritative sources and consult a qualified "
+    "environmental professional before making project decisions."
+)
+_acknowledged = st.checkbox(
+    "I understand this is a preliminary screening tool only",
+    key="disclaimer_acknowledged",
+)
+if not _acknowledged:
+    st.stop()
 
 # ----------------------------------------------------------------
 # TUTORIAL
@@ -168,6 +185,19 @@ else:
         latitude = -31.9505
         longitude = 115.8605
 
+# Validate coordinates are within Western Australia
+_WA_LAT_MIN, _WA_LAT_MAX = -35.5, -13.5
+_WA_LON_MIN, _WA_LON_MAX = 112.5, 129.5
+coords_in_wa = (
+    _WA_LAT_MIN <= latitude <= _WA_LAT_MAX
+    and _WA_LON_MIN <= longitude <= _WA_LON_MAX
+)
+if not coords_in_wa:
+    st.error(
+        "Coordinates appear to be outside Western Australia. "
+        "Please check your coordinates and try again."
+    )
+
 # ----------------------------------------------------------------
 # BUFFER CONFIGURATION
 # ----------------------------------------------------------------
@@ -232,6 +262,11 @@ if st.button("Run Screening", type="primary"):
         st.error("Please enter a site name.")
     elif input_mode == "Enter Address" and not st.session_state.get("geocoded_lat"):
         st.error("Please geocode an address before running the screening.")
+    elif not coords_in_wa:
+        st.error(
+            "Coordinates appear to be outside Western Australia. "
+            "Please check your coordinates and try again."
+        )
     elif not selected_themes:
         st.error("Please select at least one screening theme.")
     else:
@@ -244,19 +279,45 @@ if st.button("Run Screening", type="primary"):
         session_id = str(uuid.uuid4())[:8]
         st.session_state["session_id"] = session_id
 
-        with st.spinner("Running screening..."):
+        _progress = st.progress(0)
+        with st.status("Running screening...", expanded=True) as _status:
+
+            # Step 1/5 — Site geometry
+            st.write("Step 1/5: Creating site geometry...")
             site_gdf = create_site_point(latitude, longitude)
             buffers = create_buffers(site_gdf, buffer_distances=selected_buffer_distances)
             bbox = create_bbox(latitude, longitude, margin_km=2.0)
-            layers = load_layers_for_themes(selected_themes, bbox=bbox)
+            _progress.progress(20)
+
+            # Step 2/5 — Load layers individually so each name is visible
+            st.write("Step 2/5: Loading spatial layers...")
+            _layer_keys = get_layers_for_themes(selected_themes)
+            layers = {}
+            for _lk in _layer_keys:
+                st.write(f"  Loading: {_lk}")
+                _gdf = load_layer(_lk, bbox=bbox)
+                if _gdf is not None:
+                    layers[_lk] = _gdf
+            _progress.progress(40)
 
             if not layers:
                 st.error("No processed layers found. Please run preprocessing first.")
+                _status.update(label="Screening failed", state="error")
             else:
+                # Step 3/5 — Spatial queries
+                st.write("Step 3/5: Running spatial queries...")
                 results = run_all_queries(layers, site_gdf, buffers)
+                _progress.progress(60)
+
+                # Step 4/5 — Score results
+                st.write("Step 4/5: Scoring results...")
                 scored_results, theme_summary = score_results(
                     results, project_type, selected_buffer_distances
                 )
+                _progress.progress(80)
+
+                # Step 5/5 — Generate outputs
+                st.write("Step 5/5: Generating outputs...")
                 output_path = export_to_excel(
                     scored_results, site_name,
                     site_gdf=site_gdf,
@@ -292,6 +353,9 @@ if st.button("Run Screening", type="primary"):
                     session_id=session_id,
                 )
                 st.session_state["word_report_path"] = word_path
+
+                _progress.progress(100)
+                _status.update(label="Screening complete", state="complete", expanded=False)
 
 # ----------------------------------------------------------------
 # RESULTS
