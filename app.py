@@ -369,167 +369,208 @@ if "results" in st.session_state:
     selected_themes_saved = st.session_state["selected_themes"]
     output_path = st.session_state["output_path"]
     buffer_distances = st.session_state.get("buffer_distances", sorted(buffers.keys()))
-
     theme_summary = st.session_state.get("theme_summary", {})
 
-    st.success(f"Screening complete. {len(layers)} layers queried across {len(selected_themes_saved)} themes.")
+    st.success(
+        f"Screening complete. {len(layers)} layers queried across "
+        f"{len(selected_themes_saved)} themes."
+    )
+
+    # Short tab label for each full theme name
+    _THEME_SHORT = {
+        "Ecology": "Ecology",
+        "ASS / Soils / Geology": "Soils",
+        "Heritage": "Heritage",
+        "Groundwater / Hydrology": "Groundwater",
+        "Contaminated Land": "Contamination",
+        "Planning / Local Government": "Planning",
+        "Sensitive Receptors": "Receptors",
+    }
+    _RECEPTORS_THEME = "Sensitive Receptors"
+
+    _theme_tab_labels = [_THEME_SHORT.get(t, t[:14]) for t in selected_themes_saved]
+    _all_tab_labels = ["Risk Summary"] + _theme_tab_labels + ["Downloads"]
+    _tabs = st.tabs(_all_tab_labels)
 
     # ------------------------------------------------
-    # RISK SUMMARY TABLE
+    # TAB: Risk Summary
     # ------------------------------------------------
-    _rating_display = {"HIGH": "HIGH", "MEDIUM": "MEDIUM", "LOW": "LOW", "NONE": "NONE"}
-    st.subheader("Risk Summary")
-    risk_summary_rows = []
-    for theme in selected_themes_saved:
-        if theme in theme_summary:
-            ts = theme_summary[theme]
-            risk_summary_rows.append({
-                "Theme": theme,
-                "Risk Rating": _rating_display.get(ts["rating"], ts["rating"]),
-                "Score": ts["score"],
-                "Key Finding": ts["key_finding"],
-            })
-    if risk_summary_rows:
-        st.dataframe(pd.DataFrame(risk_summary_rows), use_container_width=True)
+    with _tabs[0]:
+        _rating_display = {"HIGH": "HIGH", "MEDIUM": "MEDIUM", "LOW": "LOW", "NONE": "NONE"}
+        _risk_rows = []
+        for _theme in selected_themes_saved:
+            if _theme in theme_summary:
+                _ts = theme_summary[_theme]
+                _risk_rows.append({
+                    "Theme": _theme,
+                    "Risk Rating": _rating_display.get(_ts["rating"], _ts["rating"]),
+                    "Score": _ts["score"],
+                    "Key Finding": _ts["key_finding"],
+                })
+        if _risk_rows:
+            st.dataframe(pd.DataFrame(_risk_rows), use_container_width=True)
+
+        _high = [t for t, ts in theme_summary.items() if ts["rating"] == "HIGH"]
+        _med  = [t for t, ts in theme_summary.items() if ts["rating"] == "MEDIUM"]
+        _low  = [t for t, ts in theme_summary.items() if ts["rating"] == "LOW"]
+        _summary_parts = []
+        if _high:
+            _summary_parts.append(f"HIGH risk identified for: {', '.join(_high)}.")
+        if _med:
+            _summary_parts.append(f"MEDIUM risk identified for: {', '.join(_med)}.")
+        if _low:
+            _summary_parts.append(f"LOW risk identified for {len(_low)} theme(s).")
+        if not _summary_parts:
+            _summary_parts.append("No significant environmental sensitivities identified.")
+        st.markdown(" ".join(_summary_parts))
 
     # ------------------------------------------------
-    # RESULTS BY THEME
+    # TABS: One per selected theme
     # ------------------------------------------------
-    st.subheader("Screening Results")
-    for theme in selected_themes_saved:
-        theme_results = [r for r in results if r["theme"] == theme]
-        if not theme_results:
-            continue
-        st.markdown(f"#### {theme}")
-        display_rows = []
-        for r in theme_results:
-            nearest = r["nearest_distance_m"]
-            nearest_str = "—" if r["site_intersect"] else (str(nearest) if nearest else "—")
-            row = {
-                "Layer": r["layer"],
-                "Present": "Yes" if r["present"] else "—",
-                "Max Relevance": r["max_relevance"],
-                "Primary Trigger": r["primary_trigger"],
-            }
-            for d in buffer_distances:
-                row[f"Within {d}m"] = r.get(f"within_{d}m")
-            for d in buffer_distances:
-                row[f"Count {d}m"] = r.get(f"count_{d}m")
-            row["Nearest (m)"] = nearest_str
-            row["Detected Features"] = ", ".join(r["nearby_names"]) if r["nearby_names"] else "—"
-            row["Interpretation"] = r.get("interpretation", "")
-            display_rows.append(row)
-        df = pd.DataFrame(display_rows)
-        st.dataframe(df, use_container_width=True)
+    for _ti, _theme in enumerate(selected_themes_saved):
+        with _tabs[_ti + 1]:
+            _theme_results = [r for r in results if r["theme"] == _theme]
+
+            if not _theme_results:
+                st.info("No data for this theme.")
+            else:
+                # Results table
+                _display_rows = []
+                for r in _theme_results:
+                    _nearest = r["nearest_distance_m"]
+                    _nearest_str = "—" if r["site_intersect"] else (str(_nearest) if _nearest else "—")
+                    _row = {
+                        "Layer": r["layer"],
+                        "Present": "Yes" if r["present"] else "—",
+                        "Max Relevance": r["max_relevance"],
+                        "Primary Trigger": r["primary_trigger"],
+                    }
+                    for d in buffer_distances:
+                        _row[f"Within {d}m"] = r.get(f"within_{d}m")
+                    for d in buffer_distances:
+                        _row[f"Count {d}m"] = r.get(f"count_{d}m")
+                    _row["Nearest (m)"] = _nearest_str
+                    _row["Detected Features"] = (
+                        ", ".join(r["nearby_names"]) if r["nearby_names"] else "—"
+                    )
+                    _row["Interpretation"] = r.get("interpretation", "")
+                    _display_rows.append(_row)
+                st.dataframe(pd.DataFrame(_display_rows), use_container_width=True)
+
+                # Detected features for this theme
+                _found_any = False
+                for r in _theme_results:
+                    if r["layer_key"] == "roads":
+                        continue
+                    if r["nearby_names"]:
+                        if not _found_any:
+                            st.markdown("**Detected Features**")
+                            _found_any = True
+                        st.markdown(f"*{r['layer']}:*")
+                        for _name in r["nearby_names"]:
+                            st.markdown(f"- {_name}")
+                if not _found_any:
+                    st.info("No named features detected in this theme.")
+
+                # Receptors tab: parcel counts summary
+                if _theme == _RECEPTORS_THEME and "cadastre" in layers:
+                    st.markdown("**Cadastral Parcel Counts**")
+                    _parcel_parts = []
+                    for _d in buffer_distances:
+                        if _d in buffers:
+                            _buf_union = buffers[_d].geometry.union_all()
+                            _cnt = len(
+                                layers["cadastre"][
+                                    layers["cadastre"].geometry.intersects(_buf_union)
+                                ]
+                            )
+                            _parcel_parts.append(f"{_cnt} within {_d}m")
+                    if _parcel_parts:
+                        st.markdown(", ".join(_parcel_parts))
 
     # ------------------------------------------------
-    # DETECTED FEATURES
+    # TAB: Downloads (last tab)
     # ------------------------------------------------
-    st.subheader("Detected Features")
-    found_any = False
-    for theme in selected_themes_saved:
-        theme_results = [r for r in results if r["theme"] == theme]
-        theme_found = False
-        for r in theme_results:
-            if r["layer_key"] == "roads":
-                continue
-            if r["nearby_names"]:
-                if not theme_found:
-                    st.markdown(f"**{theme}**")
-                    theme_found = True
-                    found_any = True
-                st.markdown(f"*{r['layer']}:*")
-                for name in r["nearby_names"]:
-                    st.markdown(f"- {name}")
-    if not found_any:
-        st.info("No named features identified within the screening buffers.")
-
-    # ------------------------------------------------
-    # DOWNLOAD RESULTS
-    # ------------------------------------------------
-    st.subheader("Download Results")
-    with open(output_path, "rb") as f:
-        st.download_button(
-            label="Download Excel Table",
-            data=f,
-            file_name=os.path.basename(output_path),
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key="download_excel",
-        )
-
-    word_report_path = st.session_state.get("word_report_path")
-    if word_report_path and os.path.exists(word_report_path):
-        with open(word_report_path, "rb") as f:
+    with _tabs[-1]:
+        st.markdown("**Reports**")
+        with open(output_path, "rb") as f:
             st.download_button(
-                label="Download Word Report",
+                label="Download Excel Table",
                 data=f,
-                file_name=os.path.basename(word_report_path),
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                key="download_word",
+                file_name=os.path.basename(output_path),
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="download_excel",
             )
 
-    # ------------------------------------------------
-    # MAP GENERATION
-    # ------------------------------------------------
-    st.divider()
-    st.subheader("Generate Maps")
-    st.markdown("Generate one or more maps. Each map can include different layers.")
+        word_report_path = st.session_state.get("word_report_path")
+        if word_report_path and os.path.exists(word_report_path):
+            with open(word_report_path, "rb") as f:
+                st.download_button(
+                    label="Download Word Report",
+                    data=f,
+                    file_name=os.path.basename(word_report_path),
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    key="download_word",
+                )
 
-    mappable_keys = [k for k in layers.keys() if k in MAP_LAYER_STYLES]
+        st.divider()
+        st.markdown("**Maps**")
+        st.markdown("Generate one or more maps. Each map can include different layers.")
 
-    if not mappable_keys:
-        st.info("No mappable layers available in current screening.")
-    else:
-        num_maps = st.number_input(
-            "How many maps do you want to generate?",
-            min_value=1, max_value=5, value=1, step=1
-        )
+        mappable_keys = [k for k in layers.keys() if k in MAP_LAYER_STYLES]
 
-        for map_idx in range(int(num_maps)):
-            st.markdown("---")
-            st.markdown(f"**Map {map_idx + 1}**")
+        if not mappable_keys:
+            st.info("No mappable layers available in current screening.")
+        else:
+            num_maps = st.number_input(
+                "How many maps do you want to generate?",
+                min_value=1, max_value=5, value=1, step=1
+            )
 
-            map_cols = st.columns(2)
-            map_selected_keys = []
-            for i, layer_key in enumerate(mappable_keys):
-                col = map_cols[i % 2]
-                label = LAYER_REGISTRY.get(layer_key, {}).get("label", layer_key)
-                if col.checkbox(label, value=True, key=f"map_{map_idx}_{layer_key}"):
-                    map_selected_keys.append(layer_key)
+            for map_idx in range(int(num_maps)):
+                st.markdown("---")
+                st.markdown(f"**Map {map_idx + 1}**")
 
-            if st.button(f"Generate Map {map_idx + 1}", key=f"btn_map_{map_idx}"):
-                if not map_selected_keys:
-                    st.warning("Please select at least one layer.")
-                else:
-                    selected_layers = {k: layers[k] for k in map_selected_keys}
+                map_cols = st.columns(2)
+                map_selected_keys = []
+                for i, layer_key in enumerate(mappable_keys):
+                    col = map_cols[i % 2]
+                    label = LAYER_REGISTRY.get(layer_key, {}).get("label", layer_key)
+                    if col.checkbox(label, value=True, key=f"map_{map_idx}_{layer_key}"):
+                        map_selected_keys.append(layer_key)
 
-                    # Calculate parcel counts for map labels
-                    parcel_counts = {}
-                    if "cadastre" in layers and "cadastre" in map_selected_keys:
-                        for dist in buffer_distances:
-                            buf_union = buffers[dist].geometry.union_all()
-                            count = len(layers["cadastre"][
-                                layers["cadastre"].geometry.intersects(buf_union)
-                            ])
-                            parcel_counts[dist] = count
+                if st.button(f"Generate Map {map_idx + 1}", key=f"btn_map_{map_idx}"):
+                    if not map_selected_keys:
+                        st.warning("Please select at least one layer.")
+                    else:
+                        selected_layers = {k: layers[k] for k in map_selected_keys}
 
-                    with st.spinner(f"Generating Map {map_idx + 1}..."):
-                        map_path = generate_map(
-                            site_gdf, buffers, selected_layers,
-                            site_name_saved,
-                            map_suffix=f"map{map_idx + 1}",
-                            parcel_counts=parcel_counts if parcel_counts else None,
-                            session_id=st.session_state.get("session_id", ""),
-                        )
-                    st.image(map_path)
-                    with open(map_path, "rb") as f:
-                        st.download_button(
-                            label=f"Download Map {map_idx + 1}",
-                            data=f,
-                            file_name=os.path.basename(map_path),
-                            mime="image/png",
-                            key=f"download_map_{map_idx}"
-                        )
+                        parcel_counts = {}
+                        if "cadastre" in layers and "cadastre" in map_selected_keys:
+                            for dist in buffer_distances:
+                                buf_union = buffers[dist].geometry.union_all()
+                                count = len(layers["cadastre"][
+                                    layers["cadastre"].geometry.intersects(buf_union)
+                                ])
+                                parcel_counts[dist] = count
+
+                        with st.spinner(f"Generating Map {map_idx + 1}..."):
+                            map_path = generate_map(
+                                site_gdf, buffers, selected_layers,
+                                site_name_saved,
+                                map_suffix=f"map{map_idx + 1}",
+                                parcel_counts=parcel_counts if parcel_counts else None,
+                                session_id=st.session_state.get("session_id", ""),
+                            )
+                        st.image(map_path)
+                        with open(map_path, "rb") as f:
+                            st.download_button(
+                                label=f"Download Map {map_idx + 1}",
+                                data=f,
+                                file_name=os.path.basename(map_path),
+                                mime="image/png",
+                                key=f"download_map_{map_idx}",
+                            )
 
 # ----------------------------------------------------------------
 # DATA SOURCES
