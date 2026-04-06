@@ -202,7 +202,7 @@ LAYER_CONFIG = {
         "render_as": "polygon",
         "popup_type": "fields",
         "popup_fields": ["type"],
-        "inner_buffer_only": True,
+        "inner_buffer_only": False,
     },
     "residential_osm": {
         "label": "Residential (OSM)",
@@ -211,7 +211,7 @@ LAYER_CONFIG = {
         "render_as": "polygon",
         "popup_type": "fields",
         "popup_fields": ["type"],
-        "inner_buffer_only": True,
+        "inner_buffer_only": False,
     },
     "cadastre": {
         "label": "Cadastral Parcels",
@@ -220,7 +220,7 @@ LAYER_CONFIG = {
         "render_as": "polygon",
         "popup_type": "none",
         "popup_fields": [],
-        "inner_buffer_only": True,
+        "inner_buffer_only": False,
     },
     "local_government": {
         "label": "Local Government Areas",
@@ -501,6 +501,6 @@ def generate_interactive_map(
     site_fg.add_to(m)
 
     # --- Layer control ---
-    LayerControl(collapsed=False).add_to(m)
+    LayerControl(collapsed=True).add_to(m)
 
     return m
