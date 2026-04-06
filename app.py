@@ -6,6 +6,12 @@ from scripts.export import export_to_excel
 from scripts.risk_scoring import score_results
 from scripts.report_writer import generate_word_report
 from scripts.mapping import generate_map, MAP_LAYER_STYLES
+try:
+    from scripts.interactive_map import generate_interactive_map, LAYER_CONFIG as _IMAP_CONFIG
+    from streamlit_folium import st_folium
+    _FOLIUM_AVAILABLE = True
+except ImportError:
+    _FOLIUM_AVAILABLE = False
 from scripts.registry import get_available_themes, LAYER_REGISTRY, get_layers_for_themes
 from scripts.export import _get_citation, _get_provider
 from scripts.project_types import PROJECT_TYPES
@@ -515,62 +521,168 @@ if "results" in st.session_state:
 
         st.divider()
         st.markdown("**Maps**")
-        st.markdown("Generate one or more maps. Each map can include different layers.")
+
+        _map_type = st.radio(
+            "Map Type",
+            ["Interactive Map", "Static PNG"],
+            horizontal=True,
+            key="map_type_radio",
+        )
 
         mappable_keys = [k for k in layers.keys() if k in MAP_LAYER_STYLES]
 
-        if not mappable_keys:
-            st.info("No mappable layers available in current screening.")
-        else:
-            num_maps = st.number_input(
-                "How many maps do you want to generate?",
-                min_value=1, max_value=5, value=1, step=1
-            )
+        # ------------------------------------------------
+        # Interactive Map
+        # ------------------------------------------------
+        if _map_type == "Interactive Map":
+            if not _FOLIUM_AVAILABLE:
+                st.warning(
+                    "Interactive map requires `folium` and `streamlit-folium`. "
+                    "Add them to requirements.txt and reinstall dependencies."
+                )
+            else:
+                _imap_keys = [k for k in layers.keys() if k in _IMAP_CONFIG]
+                if not _imap_keys:
+                    st.info("No mappable layers available in current screening.")
+                else:
+                    st.markdown("Select layers to include:")
+                    _imap_cols = st.columns(2)
+                    _imap_selected = []
+                    for _ii, _lk in enumerate(_imap_keys):
+                        _col = _imap_cols[_ii % 2]
+                        _lbl = LAYER_REGISTRY.get(_lk, {}).get("label", _lk)
+                        if _col.checkbox(_lbl, value=True, key=f"imap_{_lk}"):
+                            _imap_selected.append(_lk)
 
-            for map_idx in range(int(num_maps)):
-                st.markdown("---")
-                st.markdown(f"**Map {map_idx + 1}**")
+                    if st.button("Generate Interactive Map", key="btn_imap"):
+                        _imap_layers = {k: layers[k] for k in _imap_selected if k in layers}
+                        with st.spinner("Generating interactive map..."):
+                            _imap = generate_interactive_map(
+                                site_gdf, buffers, _imap_layers,
+                                site_name_saved, buffer_distances,
+                                scored_results=results,
+                            )
+                        st.session_state["interactive_map"] = _imap
 
-                map_cols = st.columns(2)
-                map_selected_keys = []
-                for i, layer_key in enumerate(mappable_keys):
-                    col = map_cols[i % 2]
-                    label = LAYER_REGISTRY.get(layer_key, {}).get("label", layer_key)
-                    if col.checkbox(label, value=True, key=f"map_{map_idx}_{layer_key}"):
-                        map_selected_keys.append(layer_key)
+                    if "interactive_map" in st.session_state:
+                        st.caption(
+                            "Interactive map — zoom, pan and click features for details"
+                        )
+                        st_folium(
+                            st.session_state["interactive_map"],
+                            width=800, height=600,
+                        )
 
-                if st.button(f"Generate Map {map_idx + 1}", key=f"btn_map_{map_idx}"):
-                    if not map_selected_keys:
+            # PNG always available regardless of display mode
+            st.divider()
+            st.markdown("**Download as Static PNG**")
+            if not mappable_keys:
+                st.info("No mappable layers available for PNG export.")
+            else:
+                _png_cols = st.columns(2)
+                _png_selected = []
+                for _pi, _lk in enumerate(mappable_keys):
+                    _col = _png_cols[_pi % 2]
+                    _lbl = LAYER_REGISTRY.get(_lk, {}).get("label", _lk)
+                    if _col.checkbox(_lbl, value=True, key=f"png_{_lk}"):
+                        _png_selected.append(_lk)
+
+                if st.button("Generate PNG", key="btn_png_imap_mode"):
+                    if not _png_selected:
                         st.warning("Please select at least one layer.")
                     else:
-                        selected_layers = {k: layers[k] for k in map_selected_keys}
-
-                        parcel_counts = {}
-                        if "cadastre" in layers and "cadastre" in map_selected_keys:
-                            for dist in buffer_distances:
-                                buf_union = buffers[dist].geometry.union_all()
-                                count = len(layers["cadastre"][
-                                    layers["cadastre"].geometry.intersects(buf_union)
-                                ])
-                                parcel_counts[dist] = count
-
-                        with st.spinner(f"Generating Map {map_idx + 1}..."):
-                            map_path = generate_map(
-                                site_gdf, buffers, selected_layers,
+                        _png_layers = {k: layers[k] for k in _png_selected}
+                        _png_parcel_counts = {}
+                        if "cadastre" in layers and "cadastre" in _png_selected:
+                            for _d in buffer_distances:
+                                _bu = buffers[_d].geometry.union_all()
+                                _png_parcel_counts[_d] = len(
+                                    layers["cadastre"][
+                                        layers["cadastre"].geometry.intersects(_bu)
+                                    ]
+                                )
+                        with st.spinner("Generating PNG..."):
+                            _png_path = generate_map(
+                                site_gdf, buffers, _png_layers,
                                 site_name_saved,
-                                map_suffix=f"map{map_idx + 1}",
-                                parcel_counts=parcel_counts if parcel_counts else None,
+                                map_suffix="png",
+                                parcel_counts=_png_parcel_counts or None,
                                 session_id=st.session_state.get("session_id", ""),
                             )
-                        st.image(map_path)
-                        with open(map_path, "rb") as f:
-                            st.download_button(
-                                label=f"Download Map {map_idx + 1}",
-                                data=f,
-                                file_name=os.path.basename(map_path),
-                                mime="image/png",
-                                key=f"download_map_{map_idx}",
-                            )
+                        st.session_state["imap_mode_png_path"] = _png_path
+
+                if st.session_state.get("imap_mode_png_path") and os.path.exists(
+                    st.session_state["imap_mode_png_path"]
+                ):
+                    _dl_path = st.session_state["imap_mode_png_path"]
+                    st.image(_dl_path)
+                    with open(_dl_path, "rb") as _f:
+                        st.download_button(
+                            label="Download PNG",
+                            data=_f,
+                            file_name=os.path.basename(_dl_path),
+                            mime="image/png",
+                            key="download_png_imap_mode",
+                        )
+
+        # ------------------------------------------------
+        # Static PNG (existing workflow)
+        # ------------------------------------------------
+        else:
+            st.markdown("Generate one or more maps. Each map can include different layers.")
+
+            if not mappable_keys:
+                st.info("No mappable layers available in current screening.")
+            else:
+                num_maps = st.number_input(
+                    "How many maps do you want to generate?",
+                    min_value=1, max_value=5, value=1, step=1
+                )
+
+                for map_idx in range(int(num_maps)):
+                    st.markdown("---")
+                    st.markdown(f"**Map {map_idx + 1}**")
+
+                    map_cols = st.columns(2)
+                    map_selected_keys = []
+                    for i, layer_key in enumerate(mappable_keys):
+                        col = map_cols[i % 2]
+                        label = LAYER_REGISTRY.get(layer_key, {}).get("label", layer_key)
+                        if col.checkbox(label, value=True, key=f"map_{map_idx}_{layer_key}"):
+                            map_selected_keys.append(layer_key)
+
+                    if st.button(f"Generate Map {map_idx + 1}", key=f"btn_map_{map_idx}"):
+                        if not map_selected_keys:
+                            st.warning("Please select at least one layer.")
+                        else:
+                            selected_layers = {k: layers[k] for k in map_selected_keys}
+
+                            parcel_counts = {}
+                            if "cadastre" in layers and "cadastre" in map_selected_keys:
+                                for dist in buffer_distances:
+                                    buf_union = buffers[dist].geometry.union_all()
+                                    count = len(layers["cadastre"][
+                                        layers["cadastre"].geometry.intersects(buf_union)
+                                    ])
+                                    parcel_counts[dist] = count
+
+                            with st.spinner(f"Generating Map {map_idx + 1}..."):
+                                map_path = generate_map(
+                                    site_gdf, buffers, selected_layers,
+                                    site_name_saved,
+                                    map_suffix=f"map{map_idx + 1}",
+                                    parcel_counts=parcel_counts if parcel_counts else None,
+                                    session_id=st.session_state.get("session_id", ""),
+                                )
+                            st.image(map_path)
+                            with open(map_path, "rb") as f:
+                                st.download_button(
+                                    label=f"Download Map {map_idx + 1}",
+                                    data=f,
+                                    file_name=os.path.basename(map_path),
+                                    mime="image/png",
+                                    key=f"download_map_{map_idx}",
+                                )
 
 # ----------------------------------------------------------------
 # DATA SOURCES
