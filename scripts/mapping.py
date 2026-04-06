@@ -76,6 +76,16 @@ MAP_LAYER_STYLES = {
         "label": "Acid Sulfate Soils", "zorder": 2, "show_labels": False,
         "marker": None
     },
+    "soil_landscape_best": {
+        "color": "#8B4513", "alpha": 0.25, "linewidth": 0.5,
+        "label": "Soil Landscape - Best Available", "zorder": 2, "show_labels": False,
+        "marker": None
+    },
+    "soil_group": {
+        "color": "#D2691E", "alpha": 0.25, "linewidth": 0.5,
+        "label": "Soil Group - WA Classification", "zorder": 2, "show_labels": False,
+        "marker": None
+    },
     "aboriginal_heritage": {
         "color": "#8B4513", "alpha": 0.20, "linewidth": 0.5,
         "label": "Aboriginal Heritage", "zorder": 2, "show_labels": False,
