@@ -93,6 +93,19 @@ def run_preprocessing():
         keep_columns=["mu_name", "mu_sum_des", "mu_system", "lq_sa_ris_", "lq_salin_m", "lq_su_aci_"],
         geometry_type="polygon"
     )
+    # NOTE: rename data/raw/Soil Landscape Mapping.gpkg → data/raw/soil_landscape_best.gpkg before running
+    preprocess_layer(
+        input_file="soil_landscape_best.gpkg",
+        output_file="soil_landscape_best_clean.gpkg",
+        keep_columns=["mu_name", "mu_sum_des", "mu_system", "lq_sa_ris_", "lq_salin_m", "lq_su_aci_"],
+        geometry_type="polygon"
+    )
+    preprocess_layer(
+        input_file="Soil_group_dpird_076.gpkg",
+        output_file="soil_group_clean.gpkg",
+        keep_columns=["wasg_decode", "muwasgs_s1", "muwasgs_p1", "mu_symbol"],
+        geometry_type="polygon"
+    )
 
     # --- HERITAGE ---
     preprocess_layer(
