@@ -545,6 +545,10 @@ if "results" in st.session_state:
 
         mappable_keys = [k for k in layers.keys() if k in MAP_LAYER_STYLES]
 
+        # Only roads pre-selected by default; site marker and buffers are always-on
+        _IMAP_DEFAULTS = {"roads"}
+        _STATIC_DEFAULTS = {"roads"}
+
         # ------------------------------------------------
         # Interactive Map
         # ------------------------------------------------
@@ -559,39 +563,64 @@ if "results" in st.session_state:
                 if not _imap_keys:
                     st.info("No mappable layers available in current screening.")
                 else:
-                    # --- Display first: show stored map if it exists ---
-                    if "interactive_map_obj" in st.session_state:
-                        st.caption(
-                            "Interactive map — zoom, pan and click features for details"
-                        )
-                        st_folium(
-                            st.session_state["interactive_map_obj"],
-                            width=800,
-                            height=600,
-                            key="interactive_map",
-                            returned_objects=[],
-                        )
+                    # Callback: mark map as needing regeneration on any checkbox change
+                    def _mark_imap_dirty():
+                        st.session_state["imap_dirty"] = True
 
-                    # --- Controls to (re)generate ---
-                    st.markdown("Select layers to include:")
-                    _imap_cols = st.columns(2)
-                    _imap_selected = []
-                    for _ii, _lk in enumerate(_imap_keys):
-                        _col = _imap_cols[_ii % 2]
-                        _lbl = LAYER_REGISTRY.get(_lk, {}).get("label", _lk)
-                        if _col.checkbox(_lbl, value=True, key=f"imap_{_lk}"):
-                            _imap_selected.append(_lk)
+                    # Column layout: layer selection left, map right
+                    _col_layers, _col_map = st.columns([1, 3])
 
-                    if st.button("Generate Interactive Map", key="btn_imap"):
-                        _imap_layers = {k: layers[k] for k in _imap_selected if k in layers}
-                        with st.spinner("Generating interactive map..."):
-                            _imap = generate_interactive_map(
-                                site_gdf, buffers, _imap_layers,
-                                site_name_saved, buffer_distances,
-                                scored_results=results,
+                    with _col_layers:
+                        st.caption("**Layers**")
+                        for _lk in _imap_keys:
+                            _lbl = LAYER_REGISTRY.get(_lk, {}).get("label", _lk)
+                            _default = _lk in _IMAP_DEFAULTS
+                            st.checkbox(
+                                _lbl,
+                                value=_default,
+                                key=f"imap_{_lk}",
+                                on_change=_mark_imap_dirty,
                             )
-                        st.session_state["interactive_map_obj"] = _imap
-                        st.rerun()
+
+                    with _col_map:
+                        st.caption(
+                            "Click on any feature to see its details. "
+                            "Use the layer panel (top right) to toggle layers on/off. "
+                            "Scroll to zoom, drag to pan."
+                        )
+
+                        # Auto-regenerate when any checkbox changes, or on first load
+                        _imap_dirty = st.session_state.get("imap_dirty", False)
+                        _should_regen = (
+                            _imap_dirty
+                            or "interactive_map_obj" not in st.session_state
+                        )
+
+                        if _should_regen:
+                            st.session_state["imap_dirty"] = False
+                            _imap_selected = [
+                                lk for lk in _imap_keys
+                                if st.session_state.get(f"imap_{lk}", lk in _IMAP_DEFAULTS)
+                            ]
+                            with st.spinner("Updating map..."):
+                                _imap_layers = {
+                                    k: layers[k] for k in _imap_selected if k in layers
+                                }
+                                _imap = generate_interactive_map(
+                                    site_gdf, buffers, _imap_layers,
+                                    site_name_saved, buffer_distances,
+                                    scored_results=results,
+                                )
+                            st.session_state["interactive_map_obj"] = _imap
+
+                        if "interactive_map_obj" in st.session_state:
+                            st_folium(
+                                st.session_state["interactive_map_obj"],
+                                width=None,
+                                height=600,
+                                key="interactive_map",
+                                returned_objects=[],
+                            )
 
             # --- PNG always available regardless of display mode ---
             st.divider()
@@ -615,13 +644,14 @@ if "results" in st.session_state:
                             key="download_png_imap_mode",
                         )
 
-                # Controls
+                # Layer selection + generate button (flat, 2-column checkboxes)
                 _png_cols = st.columns(2)
                 _png_selected = []
                 for _pi, _lk in enumerate(mappable_keys):
                     _col = _png_cols[_pi % 2]
                     _lbl = LAYER_REGISTRY.get(_lk, {}).get("label", _lk)
-                    if _col.checkbox(_lbl, value=True, key=f"png_{_lk}"):
+                    _default = _lk in _STATIC_DEFAULTS
+                    if _col.checkbox(_lbl, value=_default, key=f"png_{_lk}"):
                         _png_selected.append(_lk)
 
                 if st.button("Generate PNG", key="btn_png_imap_mode"):
@@ -656,54 +686,62 @@ if "results" in st.session_state:
             if not mappable_keys:
                 st.info("No mappable layers available in current screening.")
             else:
-                # --- Display first: show stored map if it exists ---
-                if (
-                    st.session_state.get("static_map_path")
-                    and os.path.exists(st.session_state["static_map_path"])
-                ):
-                    _dl_path = st.session_state["static_map_path"]
-                    st.image(_dl_path)
-                    with open(_dl_path, "rb") as _f:
-                        st.download_button(
-                            label="Download Map",
-                            data=_f,
-                            file_name=os.path.basename(_dl_path),
-                            mime="image/png",
-                            key="download_static_map",
-                        )
+                # Column layout: layer selection + button left, map right
+                _col_layers, _col_map = st.columns([1, 3])
 
-                # --- Controls to (re)generate ---
-                _static_cols = st.columns(2)
-                _static_selected = []
-                for _si, _lk in enumerate(mappable_keys):
-                    _col = _static_cols[_si % 2]
-                    _lbl = LAYER_REGISTRY.get(_lk, {}).get("label", _lk)
-                    if _col.checkbox(_lbl, value=True, key=f"static_{_lk}"):
-                        _static_selected.append(_lk)
+                with _col_layers:
+                    st.caption("**Layers**")
+                    _static_selected = []
+                    for _lk in mappable_keys:
+                        _lbl = LAYER_REGISTRY.get(_lk, {}).get("label", _lk)
+                        _default = _lk in _STATIC_DEFAULTS
+                        if st.checkbox(_lbl, value=_default, key=f"static_{_lk}"):
+                            _static_selected.append(_lk)
 
-                if st.button("Generate Map", key="btn_static_map"):
-                    if not _static_selected:
-                        st.warning("Please select at least one layer.")
-                    else:
-                        _static_layers = {k: layers[k] for k in _static_selected}
-                        _static_parcel_counts = {}
-                        if "cadastre" in layers and "cadastre" in _static_selected:
-                            for dist in buffer_distances:
-                                buf_union = buffers[dist].geometry.union_all()
-                                count = len(layers["cadastre"][
-                                    layers["cadastre"].geometry.intersects(buf_union)
-                                ])
-                                _static_parcel_counts[dist] = count
-                        with st.spinner("Generating map..."):
-                            _static_map_path = generate_map(
-                                site_gdf, buffers, _static_layers,
-                                site_name_saved,
-                                map_suffix="static",
-                                parcel_counts=_static_parcel_counts or None,
-                                session_id=st.session_state.get("session_id", ""),
+                    st.divider()
+                    if st.button("Generate Map", key="btn_static_map"):
+                        if not _static_selected:
+                            st.warning("Please select at least one layer.")
+                        else:
+                            _static_layers = {k: layers[k] for k in _static_selected}
+                            _static_parcel_counts = {}
+                            if "cadastre" in layers and "cadastre" in _static_selected:
+                                for dist in buffer_distances:
+                                    buf_union = buffers[dist].geometry.union_all()
+                                    count = len(layers["cadastre"][
+                                        layers["cadastre"].geometry.intersects(buf_union)
+                                    ])
+                                    _static_parcel_counts[dist] = count
+                            with st.spinner("Generating map..."):
+                                _static_map_path = generate_map(
+                                    site_gdf, buffers, _static_layers,
+                                    site_name_saved,
+                                    map_suffix="static",
+                                    parcel_counts=_static_parcel_counts or None,
+                                    session_id=st.session_state.get("session_id", ""),
+                                )
+                            st.session_state["static_map_path"] = _static_map_path
+                            st.rerun()
+
+                with _col_map:
+                    st.caption(
+                        "Select layers on the left and click Generate Map. "
+                        "The map will update with your selection."
+                    )
+                    if (
+                        st.session_state.get("static_map_path")
+                        and os.path.exists(st.session_state["static_map_path"])
+                    ):
+                        _dl_path = st.session_state["static_map_path"]
+                        st.image(_dl_path, use_container_width=True)
+                        with open(_dl_path, "rb") as _f:
+                            st.download_button(
+                                label="Download Map",
+                                data=_f,
+                                file_name=os.path.basename(_dl_path),
+                                mime="image/png",
+                                key="download_static_map",
                             )
-                        st.session_state["static_map_path"] = _static_map_path
-                        st.rerun()
 
 # ----------------------------------------------------------------
 # DATA SOURCES
