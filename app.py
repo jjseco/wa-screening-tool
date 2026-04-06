@@ -395,7 +395,7 @@ if "results" in st.session_state:
     _RECEPTORS_THEME = "Sensitive Receptors"
 
     _theme_tab_labels = [_THEME_SHORT.get(t, t[:14]) for t in selected_themes_saved]
-    _all_tab_labels = ["Risk Summary"] + _theme_tab_labels + ["Downloads"]
+    _all_tab_labels = ["Risk Summary"] + _theme_tab_labels + ["Reports", "Maps"]
     _tabs = st.tabs(_all_tab_labels)
 
     # ------------------------------------------------
@@ -495,10 +495,15 @@ if "results" in st.session_state:
                         st.markdown(", ".join(_parcel_parts))
 
     # ------------------------------------------------
-    # TAB: Downloads (last tab)
+    # TAB: Reports (second-to-last tab)
     # ------------------------------------------------
-    with _tabs[-1]:
-        st.markdown("**Reports**")
+    with _tabs[-2]:
+        st.markdown("**Excel Table**")
+        st.caption(
+            "Full screening results with all layers, buffer counts, detected features, "
+            "risk scores, and interpretations. Includes Risk Summary, per-theme sheets, "
+            "parcel detail, receptor detail, and data sources reference sheet."
+        )
         with open(output_path, "rb") as f:
             st.download_button(
                 label="Download Excel Table",
@@ -508,6 +513,12 @@ if "results" in st.session_state:
                 key="download_excel",
             )
 
+        st.divider()
+        st.markdown("**Word Report**")
+        st.caption(
+            "Structured report with cover page, executive summary, risk summary table, "
+            "per-theme results, sensitive receptors detail, data sources, and disclaimer."
+        )
         word_report_path = st.session_state.get("word_report_path")
         if word_report_path and os.path.exists(word_report_path):
             with open(word_report_path, "rb") as f:
@@ -518,10 +529,13 @@ if "results" in st.session_state:
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     key="download_word",
                 )
+        else:
+            st.info("Word report not available.")
 
-        st.divider()
-        st.markdown("**Maps**")
-
+    # ------------------------------------------------
+    # TAB: Maps (last tab)
+    # ------------------------------------------------
+    with _tabs[-1]:
         _map_type = st.radio(
             "Map Type",
             ["Interactive Map", "Static PNG"],
@@ -562,15 +576,18 @@ if "results" in st.session_state:
                                 site_name_saved, buffer_distances,
                                 scored_results=results,
                             )
-                        st.session_state["interactive_map"] = _imap
+                        st.session_state["interactive_map_object"] = _imap
 
-                    if "interactive_map" in st.session_state:
+                    if "interactive_map_object" in st.session_state:
                         st.caption(
                             "Interactive map — zoom, pan and click features for details"
                         )
                         st_folium(
-                            st.session_state["interactive_map"],
-                            width=800, height=600,
+                            st.session_state["interactive_map_object"],
+                            width=800,
+                            height=600,
+                            key="interactive_map",
+                            returned_objects=[],
                         )
 
             # PNG always available regardless of display mode
