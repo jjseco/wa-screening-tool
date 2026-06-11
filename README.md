@@ -1,4 +1,4 @@
-# WA Preliminary Environmental Screening Tool
+# Preliminary Environmental Screening Tool for Western Australian Sites
 
 A local Python GIS tool for preliminary desktop environmental screening in Western Australia.
 The tool accepts a site location (coordinates or street address), queries 21 spatial layers
